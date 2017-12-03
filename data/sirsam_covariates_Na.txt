@@ -1,0 +1,16 @@
+/home/sudipta/Documents/GA-cover2/dem_foc2.tif
+/home/sudipta/Documents/GA-cover2/k_15v5.tif
+/home/sudipta/Documents/GA-cover2/modis1_te.tif
+/home/sudipta/Documents/GA-cover2/modis7_te.tif
+/home/sudipta/Documents/GA-cover2/PM_Aster_regolithRatios_b_3.tif
+/home/sudipta/Documents/GA-cover2/rat15thk.tif
+/home/sudipta/Documents/GA-cover2/rel_foc.tif
+/home/sudipta/Documents/GA-cover2/relief_dems_3s_mosaic1.tif
+/home/sudipta/Documents/GA-cover2/relief_mrvbf_3s_mosaic.tif
+/home/sudipta/Documents/GA-cover2/sir_sam_region5.tif
+/home/sudipta/Documents/GA-cover2/sir_sam_region3.tif
+/home/sudipta/Documents/GA-cover2/Soil_ASC.tif
+/home/sudipta/Documents/GA-cover2/Soil_Atlas.tif
+/home/sudipta/Documents/GA-cover2/relief_roughness.tif
+/home/sudipta/Documents/GA-cover2/PM_Lithology_Unit_Type.tif
+/home/sudipta/Documents/GA-cover2/outcrop_dis2.tif
