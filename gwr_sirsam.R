@@ -73,7 +73,8 @@ model.covariates.gauss <- gwr(
   bandwidth = 3.0,
   # coords = sirsam@coords,
   se.fit = TRUE,
-  longlat = TRUE
+  longlat = TRUE,
+  hatmatrix = TRUE
 )
 
 model.covariates.pred <- gwr(
@@ -84,6 +85,7 @@ model.covariates.pred <- gwr(
   fittedGWRobject = model.covariates.gauss,
   longlat = TRUE,
   fit.points = SpatialPoints(cbind(sirsam$DLong, sirsam$Dlats)),
+  # predictions = TRUE,
   cl = cl
 )
 

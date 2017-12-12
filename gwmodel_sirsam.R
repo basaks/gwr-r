@@ -10,6 +10,12 @@ source('R/read_covariates.R')
 sirsam <- readOGR(dsn = "data/geochem_sites.shp")
 covariates.file <- 'data/sirsam_covariates_Na.txt'
 
+LONGLAT <- TRUE
+ADAPTIVE <- TRUE
+KERNEL <- 'gaussian'
+APPROACH <- 'AIC'
+
+
 cl <- makeCluster(detectCores() - 1)
 
 
@@ -41,8 +47,9 @@ sirsam@data <- cbind.data.frame(sirsam@data, intersected.df)
 
 # determine bw using croosval
 model.covariates.bw <- bw.gwr(
-  formula = fmla, approach = 'AIC', adaptive = TRUE,
-  data = sirsam, longlat = TRUE, kernel = 'gaussian'
+  formula = fmla, data = sirsam, 
+  longlat = LONGLAT, kernel = KERNEL,
+  approach = APPROACH, adaptive = ADAPTIVE
 )
 
 # We choose to specify bw (in degrees)
@@ -51,9 +58,8 @@ model.covariates.gauss <- gwr.basic(
   data = sirsam,
   bw = model.covariates.bw,
   # coords = sirsam@coords,
-  longlat = TRUE,
-  kernel = 'gaussian',
-  adaptive = TRUE
+  longlat = LONGLAT, kernel = KERNEL,
+  approach = APPROACH, adaptive = ADAPTIVE
 )
 
 
@@ -65,12 +71,12 @@ model.covariates.pred <- gwr.predict(
     coords = coordinates(sirsam),
     data = sirsam@data, 
     proj4string = sample.crs),
-  longlat = TRUE,
-  kernel = 'gaussian',
-  adaptive = TRUE
+  longlat = LONGLAT, kernel = KERNEL,
+  approach = APPROACH, adaptive = ADAPTIVE
 )
 
 plot(sirsam$Na_ppm_imp, model.covariates.pred$SDF$prediction)
+plot(sirsam$Na_ppm_imp, sqrt(model.covariates.pred$SDF$prediction_var))
 
 predictors <- stack()
 
@@ -92,19 +98,26 @@ predfun <- function(model.covariates.gauss, spatial.df){
                var=as.vector(v$SDF$prediction_var)))
 }
 
-row.block.size <- 200
+row.block.size <- 2
 row.max <- dim(predictors)[1]
 col.max <- dim(predictors)[2]
 col.num <- 0
 all.coords <- coordinates(predictors)
+
+
+s2 <- writeStart(sample.ras, filename='test2.tif', format='GTiff', 
+                 overwrite=TRUE)
+
 
 for (i in seq(from=1, to=row.max, by=row.block.size)) {
   last.row <- i + row.block.size
   if (last.row > row.max) {
     last.row <- row.max +1
   }
+  
   start.i <- (i-1)*col.max + 1
   end.i <- (last.row-1)*col.max
+  
   coords <- all.coords[start.i: end.i, ]
   last.p <- last.row-1
   df <- data.frame(predictors[i: last.p, ])
@@ -124,6 +137,11 @@ for (i in seq(from=1, to=row.max, by=row.block.size)) {
     kernel = 'gaussian',
     adaptive = TRUE
   )
+  
+  s2 <- writeValues(s2, chunk.pred$SDF$prediction, i)
+  
   col.num <- col.num + 1
   coords <- 0
+  }
 }
+s2 <- writeStop(s2)
