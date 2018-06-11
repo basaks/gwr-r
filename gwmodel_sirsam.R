@@ -2,27 +2,27 @@ rm(list=ls())
 library(sp)
 library(rgdal)
 library(GWmodel)
-library(parallel)
+library(doParallel)
 library(raster)
-
 
 source('R/read_covariates.R')
 sirsam <- readOGR(dsn = "data/geochem_sites.shp")
 covariates.file <- 'data/sirsam_covariates_Na.txt'
+small.covariates.file <- 'data/sirsam_covariates_Na.small.txt'
 
-LONGLAT <- TRUE
+LONGLAT <- FALSE
 ADAPTIVE <- TRUE
 KERNEL <- 'gaussian'
 APPROACH <- 'AIC'
 
-
-cl <- makeCluster(detectCores() - 1)
-
-
 # pick a sample raster for gathering the indices of the targets in rasters
-covariates.list = ParseText(covariates.file)
+covariates.list <- ParseText(covariates.file)
 sample.ras <- raster(covariates.list[1])
 sample.crs <- sample.ras@crs
+
+small.covariates.list <- ParseText(small.covariates.file)
+small.sample.ras <- raster(small.covariates.list[1])
+small.sample.crs <- small.sample.ras@crs
 
 # extracted cells for which we need covariate values
 cells <- extract(sample.ras, sirsam@coords, cellnumbers=TRUE)[,1]
@@ -59,9 +59,8 @@ model.covariates.gauss <- gwr.basic(
   bw = model.covariates.bw,
   # coords = sirsam@coords,
   longlat = LONGLAT, kernel = KERNEL,
-  approach = APPROACH, adaptive = ADAPTIVE
+  adaptive = ADAPTIVE
 )
-
 
 model.covariates.pred <- gwr.predict(
   formula = fmla,
@@ -72,7 +71,7 @@ model.covariates.pred <- gwr.predict(
     data = sirsam@data, 
     proj4string = sample.crs),
   longlat = LONGLAT, kernel = KERNEL,
-  approach = APPROACH, adaptive = ADAPTIVE
+  adaptive = ADAPTIVE
 )
 
 plot(sirsam$Na_ppm_imp, model.covariates.pred$SDF$prediction)
@@ -80,8 +79,10 @@ plot(sirsam$Na_ppm_imp, sqrt(model.covariates.pred$SDF$prediction_var))
 
 predictors <- stack()
 
-for (i in 1:nrow(covariates.list)) {
-  predictors <- stack(predictors, covariates.list[i])
+
+# predict on really small data
+for (i in 1:nrow(small.covariates.list)) {
+  predictors <- stack(predictors, small.covariates.list[i])
 }
 
 predfun <- function(model.covariates.gauss, spatial.df){
@@ -98,18 +99,26 @@ predfun <- function(model.covariates.gauss, spatial.df){
                var=as.vector(v$SDF$prediction_var)))
 }
 
-row.block.size <- 2
+row.block.size <- 1
 row.max <- dim(predictors)[1]
 col.max <- dim(predictors)[2]
 col.num <- 0
 all.coords <- coordinates(predictors)
-
-
-s2 <- writeStart(sample.ras, filename='test2.tif', format='GTiff', 
+s2 <- writeStart(small.sample.ras, filename='test2.tif', format='GTiff',
                  overwrite=TRUE)
 
 
+# set up parallel processing
+# cl <- makeCluster(detectCores() - 1)
+# registerDoParallel(cl)
+
+# finalRasterPred <- foreach(i=1:row.max, .combine=cbind) %dopar%
+
+print('before prediction loop')
+  
+  
 for (i in seq(from=1, to=row.max, by=row.block.size)) {
+  print(paste('predicting for loop: ', i))
   last.row <- i + row.block.size
   if (last.row > row.max) {
     last.row <- row.max +1
@@ -140,8 +149,9 @@ for (i in seq(from=1, to=row.max, by=row.block.size)) {
   
   s2 <- writeValues(s2, chunk.pred$SDF$prediction, i)
   
-  col.num <- col.num + 1
   coords <- 0
-  }
 }
 s2 <- writeStop(s2)
+
+#stop cluster
+# stopCluster(cl)
