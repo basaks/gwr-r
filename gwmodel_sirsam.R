@@ -8,7 +8,6 @@ library(raster)
 source('R/read_covariates.R')
 sirsam <- readOGR(dsn = "data/geochem_sites.shp")
 covariates.file <- 'data/sirsam_covariates_Na.txt'
-small.covariates.file <- 'data/sirsam_covariates_Na.small.txt'
 
 LONGLAT <- FALSE
 ADAPTIVE <- TRUE
@@ -19,10 +18,6 @@ APPROACH <- 'AIC'
 covariates.list <- ParseText(covariates.file)
 sample.ras <- raster(covariates.list[1])
 sample.crs <- sample.ras@crs
-
-small.covariates.list <- ParseText(small.covariates.file)
-small.sample.ras <- raster(small.covariates.list[1])
-small.sample.crs <- small.sample.ras@crs
 
 # extracted cells for which we need covariate values
 cells <- extract(sample.ras, sirsam@coords, cellnumbers=TRUE)[,1]
@@ -74,20 +69,18 @@ model.covariates.pred <- gwr.predict(
   adaptive = ADAPTIVE
 )
 
+# print measured_vs_prediction output
 pdf('measured_vs_prediction.pdf')
 plot(sirsam$Na_ppm_imp, model.covariates.pred$SDF$prediction,
      main="Prediction at Mesurement Points",
      xlab="Measured", ylab="Prediction")
 dev.off()
-
 # plot(sirsam$Na_ppm_imp, sqrt(model.covariates.pred$SDF$prediction_var))
 
 predictors <- stack()
 
-
-# predict on really small data
-for (i in 1:nrow(small.covariates.list)) {
-  predictors <- stack(predictors, small.covariates.list[i])
+for (i in 1:nrow(covariates.list)) {
+  predictors <- stack(predictors, covariates.list[i])
 }
 
 row.max <- dim(predictors)[1]
@@ -140,7 +133,7 @@ registerDoParallel(cl)
 finalRasterPred <- foreach(i=1:row.max) %dopar% predfunc(i)
 stopCluster(cl)
 
-s2 <- writeStart(small.sample.ras, filename='prediction.tif', format='GTiff',
+s2 <- writeStart(sample.ras, filename='prediction.tif', format='GTiff',
                  overwrite=TRUE, dataType='FLT4S')
 
 for (i in seq(from=1, to=row.max, by=1)) {
