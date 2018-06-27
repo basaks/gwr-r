@@ -6,8 +6,9 @@ library(doParallel)
 library(raster)
 
 source('R/read_covariates.R')
-sirsam <- readOGR(dsn = "data/geochem_sites.shp")
-covariates.file <- 'data/sirsam_covariates_Na.txt'
+sirsam <- readOGR(dsn = "/g/data1/ge3/john/jobs/murray_B_depth/Targets_2017/Targets_MurrayB_confid3_resampled_25p.shp")
+covariates.file <- 'list.txt'
+small.covariates.file <- 'list.small.txt'
 
 LONGLAT <- FALSE
 ADAPTIVE <- TRUE
@@ -18,6 +19,12 @@ APPROACH <- 'AIC'
 covariates.list <- ParseText(covariates.file)
 sample.ras <- raster(covariates.list[1])
 sample.crs <- sample.ras@crs
+
+
+small.covariates.list <- ParseText(small.covariates.file)
+small.sample.ras <- raster(small.covariates.list[1])
+small.sample.crs <- small.sample.ras@crs
+
 
 # extracted cells for which we need covariate values
 cells <- extract(sample.ras, sirsam@coords, cellnumbers=TRUE)[,1]
@@ -34,7 +41,7 @@ intersected.df <- ReadCovariates(covariates.file, cells, sample.crs)
 intersected.names <- names(intersected.df)
 
 # regression formula
-fmla <- as.formula(paste('Na_ppm_imp', " ~ ",
+fmla <- as.formula(paste('depth', " ~ ",
                          paste(intersected.names, collapse= " + ")))
 
 # combine with original df
@@ -71,16 +78,16 @@ model.covariates.pred <- gwr.predict(
 
 # print measured_vs_prediction output
 pdf('measured_vs_prediction.pdf')
-plot(sirsam$Na_ppm_imp, model.covariates.pred$SDF$prediction,
+plot(sirsam$depth, model.covariates.pred$SDF$prediction,
      main="Prediction at Mesurement Points",
      xlab="Measured", ylab="Prediction")
-dev.off()
+ dev.off()
 # plot(sirsam$Na_ppm_imp, sqrt(model.covariates.pred$SDF$prediction_var))
 
 predictors <- stack()
 
-for (i in 1:nrow(covariates.list)) {
-  predictors <- stack(predictors, covariates.list[i])
+for (i in 1:nrow(small.covariates.list)) {
+  predictors <- stack(predictors, small.covariates.list[i])
 }
 
 row.max <- dim(predictors)[1]
@@ -128,12 +135,12 @@ predfunc <- function(i){
 }
 
 # run the parallel computation
-cl <- makeCluster(detectCores() - 1)
+cl <- makeCluster(detectCores())
 registerDoParallel(cl)
 finalRasterPred <- foreach(i=1:row.max) %dopar% predfunc(i)
 stopCluster(cl)
 
-s2 <- writeStart(sample.ras, filename='prediction.tif', format='GTiff',
+s2 <- writeStart(small.sample.ras, filename='mb_prediction.tif', format='GTiff',
                  overwrite=TRUE, dataType='FLT4S')
 
 for (i in seq(from=1, to=row.max, by=1)) {
