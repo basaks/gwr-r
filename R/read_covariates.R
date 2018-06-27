@@ -33,17 +33,17 @@ ReadCovariates <- function(cov_file, to_be_intersected, sample.crs) {
     num_unique <- length(unique(r[]))
     # if a raster has unique values less than col*row / 10000 is assumed to be categorical
     if(num_unique < round((r@ncols * r@nrows) / 10000)){
-      print("categorical")
+      print(paste("categorical covariate found", fname, 'will skip'))
       num_categorical <- num_categorical + 1
       r[] <- as.factor(r[])
+      next
     }
-    #CRS check
+    # CRS check and correction
     if(!compareCRS(sample.crs, r@crs)){
       print(paste("CRS converted for",fname))
-      r@crs <- expected_CRS
+      r@crs <- sample.crs
     }
-    
-    
+
     #Intersect the covariates with the target locations
     cov_intersected <- data.frame(extract(r, to_be_intersected))
     colnames(cov_intersected) <- r@data@names
