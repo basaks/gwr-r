@@ -8,16 +8,23 @@ library(raster)
 source('R/read_covariates.R')
 sirsam <- readOGR(dsn = "data/geochem_sites.shp")
 covariates.file <- 'data/sirsam_covariates_Na.txt'
+small.covariates.file <- 'data/sirsam_covariates_Na.small.txt'
 
 LONGLAT <- FALSE
 ADAPTIVE <- TRUE
 KERNEL <- 'gaussian'
 APPROACH <- 'AIC'
+P <- 1
 
 # pick a sample raster for gathering the indices of the targets in rasters
 covariates.list <- ParseText(covariates.file)
 sample.ras <- raster(covariates.list[1])
 sample.crs <- sample.ras@crs
+
+small.covariates.list <- ParseText(small.covariates.file)
+small.sample.ras <- raster(small.covariates.list[1])
+small.sample.crs <- small.sample.ras@crs
+
 
 # extracted cells for which we need covariate values
 cells <- extract(sample.ras, sirsam@coords, cellnumbers=TRUE)[,1]
@@ -44,7 +51,7 @@ sirsam@data <- cbind.data.frame(sirsam@data, intersected.df)
 model.covariates.bw <- bw.gwr(
   formula = fmla, data = sirsam,
   longlat = LONGLAT, kernel = KERNEL,
-  approach = APPROACH, adaptive = ADAPTIVE
+  approach = APPROACH, adaptive = ADAPTIVE, p=P
 )
 
 # We choose to specify bw (in degrees)
@@ -66,7 +73,8 @@ model.covariates.pred <- gwr.predict(
     data = sirsam@data,
     proj4string = sample.crs),
   longlat = LONGLAT, kernel = KERNEL,
-  adaptive = ADAPTIVE
+  adaptive = ADAPTIVE,
+  p=P
 )
 
 # print measured_vs_prediction output
@@ -79,8 +87,8 @@ dev.off()
 
 predictors <- stack()
 
-for (i in 1:nrow(covariates.list)) {
-  predictors <- stack(predictors, covariates.list[i])
+for (i in 1:nrow(small.covariates.list)) {
+  predictors <- stack(predictors, small.covariates.list[i])
 }
 
 row.max <- dim(predictors)[1]
@@ -96,17 +104,13 @@ predfunc <- function(i){
   library(GWmodel)
   library(raster)
   print(paste('predicting for loop: ', i))
-  last.row <- i + 1
-  if (last.row > row.max) {
-    last.row <- row.max +1
-  }
 
   start.i <- (i-1)*col.max + 1
-  end.i <- (last.row-1)*col.max
+  end.i <- i*col.max
 
   coords <- all.coords[start.i: end.i, ]
-  last.p <- last.row-1
-  df <- data.frame(predictors[i: last.p, ])
+  
+  df <- data.frame(predictors[i, ])
 
   predictdata <- SpatialPointsDataFrame(
     coords = coords,
@@ -122,7 +126,8 @@ predfunc <- function(i){
     longlat = LONGLAT,
     kernel = KERNEL,
     adaptive = ADAPTIVE,
-    dMat2 = dm.calib
+    dMat2 = dm.calib,
+    p = P
   )
   return(chunk.pred$SDF$prediction)
 }
@@ -133,7 +138,7 @@ registerDoParallel(cl)
 finalRasterPred <- foreach(i=1:row.max) %dopar% predfunc(i)
 stopCluster(cl)
 
-s2 <- writeStart(sample.ras, filename='prediction.tif', format='GTiff',
+s2 <- writeStart(small.sample.ras, filename='prediction.tif', format='GTiff',
                  overwrite=TRUE, dataType='FLT4S')
 
 for (i in seq(from=1, to=row.max, by=1)) {
